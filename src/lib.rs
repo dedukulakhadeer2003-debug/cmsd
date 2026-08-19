@@ -58,12 +58,15 @@ impl ExecutionStorage {
     }
 }
 
+// thread_local! gives each thread its own private copy of the variable.
 thread_local! {
+    // white board for each individual thrad
     static CURRENT_OPERATION: Cell<Option<OperationId>> = const {
         Cell::new(None)
     };
+    // creating 1 storage for all  individual thread
     static EXECUTION_STORAGE: RefCell<ExecutionStorage> = {
-        RefCell::new(ExecutionStorage::new())
+        RefCell::new(Exi ecutionStorage::new())
     };
 
 }
@@ -78,7 +81,7 @@ where
     let operation = Operation::new(id, name.to_string(), parent_id);
 
     EXECUTION_STORAGE.with(|storage| {
-        storage.borrow_mut().insert(operation);
+        storage.borrow_mut().insert(operation); // now it is like 2 buckets operation is poured into bigger bucked operations ( which has hashmap rules ). now any modifications of this opearation should be dont with accessing operations to operation with id. Technically operation dosnt exist here.  
     });
 
     let previous_operation = CURRENT_OPERATION.with(|current| {
@@ -93,20 +96,21 @@ where
 
     match  result {
             Ok(value) => {
-              operation.status: OperationStatus::Success;
+                value
             }
             Err(payload) => {
-               operation.status: OperationStatus:Failed;
-                if (payload..downcast_ref::<String>()) {
-                    foperation.failure_reason.Some(message);
-                } if else (payload..downcast_ref::<&str>()) {
-                    operation.failure_reason.Some(message);
-                } else {
+               operation.status= OperationStatus:Failed;
+               if (payload.downcast_ref::<String>()) {
+                    foperation.failure_reason= Some(message);
+               } else if (payload.downcast_ref::<&str>()) {
+                    operation.failure_reason = Some(message);
+               } else {
                     "unknown panic payload".to_string()
-                    std::panic::resume_unwind(payload)
-                }
+                    
+               }
             }
     }
+    std::panic::resume_unwind(payload)
 
 
     EXECUTION_STORAGE.with(|storage| {

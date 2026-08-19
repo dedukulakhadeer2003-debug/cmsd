@@ -10,7 +10,7 @@ pub enum OperationStatus {
     Running,
     Success,
     Failed,
-}
+}  
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct OperationId(u64);
@@ -22,7 +22,7 @@ pub struct Operation {
     pub start_time: Instant,
     pub end_time: Option<Instant>,
     pub status: OperationStatus,
-    pub failure_reason: Option<Box<dyn any + send>>,
+    pub failure_reason: Option<Box<String>>,
 }   
 
 impl Operation {
@@ -36,7 +36,7 @@ impl Operation {
             status: OperationStatus::Running,
         }
     }
-}
+}   
 
 pub struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
@@ -87,7 +87,28 @@ where
         previous
     });
     println!("[whyfail]  started: {} (id = {})", name, id.0);
-    let result = operation_fn();
+    let result =  std::panic::catch_unwind({|| {
+        operation_fn()   
+    }}); 
+
+    match  result {
+            Ok(value) => {
+              operation.status: OperationStatus::Success;
+            }
+            Err(payload) => {
+               operation.status: OperationStatus:Failed;
+                if (payload..downcast_ref::<String>()) {
+                    foperation.failure_reason.Some(message);
+                } if else (payload..downcast_ref::<&str>()) {
+                    operation.failure_reason.Some(message);
+                } else {
+                    "unknown panic payload".to_string()
+                    std::panic::resume_unwind(payload)
+                }
+            }
+    }
+
+
     EXECUTION_STORAGE.with(|storage| {
         let mut storage = storage.borrow_mut();
         if let Some(operation) = storage.get_mut(id) {

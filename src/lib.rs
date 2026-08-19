@@ -6,7 +6,6 @@ use std::time::Instant;
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 
 
-
 pub enum OperationStatus {
     Running,
     Success,
@@ -23,8 +22,8 @@ pub struct Operation {
     pub start_time: Instant,
     pub end_time: Option<Instant>,
     pub status: OperationStatus,
-    pub failure_reason: Option<String>,
-}
+    pub failure_reason: Option<Box<dyn any + send>>,
+}   
 
 impl Operation {
     pub fn new(id: OperationId, name: String, parent_id: Option<OperationId>) -> Self {

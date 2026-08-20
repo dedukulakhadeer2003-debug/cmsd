@@ -44,7 +44,7 @@ pub struct ExecutionStorage {
 impl ExecutionStorage {
     pub fn new() -> Self {
         Self {
-            operations: HashMap::new(),
+            oper we ations: HashMap::new(),
         }
     }
     pub fn insert(&mut self, operation: Operation) {
@@ -65,8 +65,9 @@ thread_local! {
         Cell::new(None)
     };
     // creating 1 storage for all  individual thread
+    //so basically  execa_stor is name of process of accessing storage but storage is its actual storage. we need name for its content we cant access it by just exec_storage 
     static EXECUTION_STORAGE: RefCell<ExecutionStorage> = {
-        RefCell::new(Exi ecutionStorage::new())
+        RefCell::new(ExecutionStorage::new() )
     };
 
 }

@@ -38,19 +38,16 @@ impl Operation {
     }
 }  
 
-pub extract_message( payload: &(dyn std::any::Any + send)) -> String{
-    match 
-
-
-
-    if (payload.downcast_ref::<&str>(){
-        return payload
-    } else if (payload.downcast_ref::<String>()){
-
-    } else {
-        " dont know wt the error is".is_string()
+pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String{
+        if let Some(s)= (payload.downcast_ref::<&str>()) {
+            return s.to_string()
+            else  if let Some(s) = (payload.downcast_ref::<&String>()){
+            return s.clone()
+            } else{
+                "unknown payload type got".to_string()
+            }
+        } 
     }
-
 }
 
 pub struct ExecutionStorage {

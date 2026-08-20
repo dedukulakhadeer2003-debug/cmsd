@@ -36,7 +36,22 @@ impl Operation {
             status: OperationStatus::Running,
         }
     }
-}   
+}  
+
+pub extract_message( payload: &(dyn std::any::Any + send)) -> String{
+    match 
+
+
+
+    if (payload.downcast_ref::<&str>(){
+        return payload
+    } else if (payload.downcast_ref::<String>()){
+
+    } else {
+        " dont know wt the error is".is_string()
+    }
+
+}
 
 pub struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
@@ -56,6 +71,7 @@ impl ExecutionStorage {
     pub fn get_mut(&mut self, id: OperationId) -> Option<&mut Operation> {
         self.operations.get_mut(&id)
     }
+    pub 
 }
 
 // thread_local! gives each thread its own private copy of the variable.
@@ -66,8 +82,10 @@ thread_local! {
     };
     // creating 1 storage for all  individual thread
     //so basically  execa_stor is name of process of accessing storage but storage is its actual storage. we need name for its content we cant access it by just exec_storage 
+    // it actually a power we give to thread that lets access content of a struct.
+    // basically we want 1 shared memory that needs to be shared among many threads. if we keep outside a thread/ operation will update it modify info
     static EXECUTION_STORAGE: RefCell<ExecutionStorage> = {
-        RefCell::new(ExecutionStorage::new() )
+        RefCell::new(ExecutionStorage::new())
     };
 
 }
@@ -100,15 +118,13 @@ where
                 value
             }
             Err(payload) => {
-               operation.status= OperationStatus:Failed;
-               if (payload.downcast_ref::<String>()) {
-                    foperation.failure_reason= Some(message);
-               } else if (payload.downcast_ref::<&str>()) {
-                    operation.failure_reason = Some(message);
-               } else {
-                    "unknown panic payload".to_string()
-                    
-               }
+                let message = extract_message(&payload)
+                EXECUTION_STORAGE.wih(|storage| {
+                    let mut storage = storage.get_mut(id){
+                        operation.status = OperationStatus::Failed;
+                        operation.failure_reason= Some(message)
+                    }
+                });
             }
     }
     std::panic::resume_unwind(payload)

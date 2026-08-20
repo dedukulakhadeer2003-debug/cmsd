@@ -34,21 +34,22 @@ impl Operation {
             start_time: Instant::now(),
             end_time: None,
             status: OperationStatus::Running,
+            failure_reason: Some(message),
         }
     }
 }  
 
 pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String{
-        if let Some(s)= (payload.downcast_ref::<&str>()) {
-            return s.to_string()
+        if let Some(s)= payload.downcast_ref::<&str>() {
+            return s.to_string();
             else  if let Some(s) = (payload.downcast_ref::<&String>()){
-            return s.clone()
+            return s.clone();
             } else{
                 "unknown payload type got".to_string()
             }
         } 
     }
-}
+
 
 pub struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
@@ -56,7 +57,7 @@ pub struct ExecutionStorage {
 impl ExecutionStorage {
     pub fn new() -> Self {
         Self {
-            oper we ations: HashMap::new(),
+            operations: HashMap::new(),
         }
     }
     pub fn insert(&mut self, operation: Operation) {
@@ -68,7 +69,7 @@ impl ExecutionStorage {
     pub fn get_mut(&mut self, id: OperationId) -> Option<&mut Operation> {
         self.operations.get_mut(&id)
     }
-    pub 
+     
 }
 
 // thread_local! gives each thread its own private copy of the variable.
@@ -112,19 +113,19 @@ where
 
     match  result {
             Ok(value) => {
-                value
+                return value
             }
             Err(payload) => {
-                let message = extract_message(&payload)
-                EXECUTION_STORAGE.wih(|storage| {
+                let message = extract_message(&payload);
+                EXECUTION_STORAGE.with(|storage| {
                     let mut storage = storage.get_mut(id){
                         operation.status = OperationStatus::Failed;
                         operation.failure_reason= Some(message)
-                    }
+                    };
                 });
             }
     }
-    std::panic::resume_unwind(payload)
+    std::panic::resume_unwind(payload);
 
 
     EXECUTION_STORAGE.with(|storage| {

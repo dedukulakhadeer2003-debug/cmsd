@@ -5,12 +5,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 
-
 pub enum OperationStatus {
     Running,
     Success,
     Failed,
-}  
+}
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct OperationId(u64);
@@ -23,7 +22,7 @@ pub struct Operation {
     pub end_time: Option<Instant>,
     pub status: OperationStatus,
     pub failure_reason: Option<String>,
-}   
+}
 
 impl Operation {
     pub fn new(id: OperationId, name: String, parent_id: Option<OperationId>) -> Self {
@@ -37,19 +36,17 @@ impl Operation {
             failure_reason: None,
         }
     }
-}  
+}
 
-pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String{
-        if let Some(s)= payload.downcast_ref::<&str>() {
-            return s.to_string();
-        } else  if let Some(s) = payload.downcast_ref::<String>(){
-            return s.clone();
-        } else{
-                "unknown payload type got".to_string()
-            
-        } 
+pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        return s.to_string();
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        return s.clone();
+    } else {
+        "unknown payload type got".to_string()
     }
-
+}
 
 pub struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
@@ -69,7 +66,6 @@ impl ExecutionStorage {
     pub fn get_mut(&mut self, id: OperationId) -> Option<&mut Operation> {
         self.operations.get_mut(&id)
     }
-     
 }
 
 // thread_local! gives each thread its own private copy of the variable.
@@ -79,7 +75,7 @@ thread_local! {
         Cell::new(None)
     };
     // creating 1 storage for all  individual thread
-    //so basically  execa_stor is name of process of accessing storage but storage is its actual storage. we need name for its content we cant access it by just exec_storage 
+    //so basically  execa_stor is name of process of accessing storage but storage is its actual storage. we need name for its content we cant access it by just exec_storage
     // it actually a power we give to thread that lets access content of a struct.
     // basically we want 1 shared memory that needs to be shared among many threads. if we keep outside a thread/ operation will update it modify info
     static EXECUTION_STORAGE: RefCell<ExecutionStorage> = {
@@ -107,18 +103,14 @@ where
         previous
     });
     println!("[whyfail]  started: {} (id = {})", name, id.0);
-    let result =  std::panic::catch_unwind(std::panic::AssertUnwindSafe({|| {
-        operation_fn()   
-    }})); 
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe({ || operation_fn() }));
 
     let final_result = match result {
-        Ok(value) => {
-             value  
-        }
+        Ok(value) => value,
         Err(payload) => {
             let message = extract_message(&payload);
             EXECUTION_STORAGE.with(|storage| {
-                let mut storage = storage.borrow_mut();   
+                let mut storage = storage.borrow_mut();
                 if let Some(operation) = storage.get_mut(id) {
                     operation.status = OperationStatus::Failed;
                     operation.failure_reason = Some(message);
@@ -129,8 +121,7 @@ where
     };
     CURRENT_OPERATION.with(|current| current.set(previous_operation));
     final_result
-  }
- 
+}
 
 #[cfg(test)]
 
@@ -281,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn panicking_operation_is_detected(){
+    fn panicking_operation_is_detected() {
         let result = std::panic::catch_unwind(|| {
             trace("failing_operation", || {
                 panic!("something wnent wrong");
@@ -289,10 +280,8 @@ mod tests {
         });
         assert!(result.is_err());
     }
-
-
-
-
-
-
+    #[test]
+    fn panicking_operation_records_str_message() {
+        //
+    }
 }

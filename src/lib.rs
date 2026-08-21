@@ -22,7 +22,7 @@ pub struct Operation {
     pub start_time: Instant,
     pub end_time: Option<Instant>,
     pub status: OperationStatus,
-    pub failure_reason: Option<Box<String>>,
+    pub failure_reason: Option<String>,
 }   
 
 impl Operation {
@@ -34,7 +34,7 @@ impl Operation {
             start_time: Instant::now(),
             end_time: None,
             status: OperationStatus::Running,
-            failure_reason: Some(message),
+            failure_reason: None,
         }
     }
 }  
@@ -42,11 +42,11 @@ impl Operation {
 pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String{
         if let Some(s)= payload.downcast_ref::<&str>() {
             return s.to_string();
-            else  if let Some(s) = (payload.downcast_ref::<&String>()){
+        } else  if let Some(s) = payload.downcast_ref::<String>(){
             return s.clone();
-            } else{
+        } else{
                 "unknown payload type got".to_string()
-            }
+            
         } 
     }
 
@@ -107,42 +107,30 @@ where
         previous
     });
     println!("[whyfail]  started: {} (id = {})", name, id.0);
-    let result =  std::panic::catch_unwind({|| {
+    let result =  std::panic::catch_unwind(std::panic::AssertUnwindSafe({|| {
         operation_fn()   
-    }}); 
+    }})); 
 
-    match  result {
-            Ok(value) => {
-                return value
-            }
-            Err(payload) => {
-                let message = extract_message(&payload);
-                EXECUTION_STORAGE.with(|storage| {
-                    let mut storage = storage.get_mut(id){
-                        operation.status = OperationStatus::Failed;
-                        operation.failure_reason= Some(message)
-                    };
-                });
-            }
-    }
-    std::panic::resume_unwind(payload);
-
-
-    EXECUTION_STORAGE.with(|storage| {
-        let mut storage = storage.borrow_mut();
-        if let Some(operation) = storage.get_mut(id) {
-            operation.end_time = Some(Instant::now());
+    let final_result = match result {
+        Ok(value) => {
+             value  
         }
-        println!(
-            "[whyfail] finished: {} (id ={})",
-            storage.get(id).unwrap().name,
-            storage.get(id).unwrap().id.0
-        );
-    });
-
+        Err(payload) => {
+            let message = extract_message(&payload);
+            EXECUTION_STORAGE.with(|storage| {
+                let mut storage = storage.borrow_mut();   
+                if let Some(operation) = storage.get_mut(id) {
+                    operation.status = OperationStatus::Failed;
+                    operation.failure_reason = Some(message);
+                }
+            });
+            std::panic::resume_unwind(payload);
+        }
+    };
     CURRENT_OPERATION.with(|current| current.set(previous_operation));
-    result
-}
+    final_result
+  }
+ 
 
 #[cfg(test)]
 

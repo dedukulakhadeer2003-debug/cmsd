@@ -43,6 +43,8 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
         return s.to_string();
     } else if let Some(s) = payload.downcast_ref::<String>() {
         return s.clone();
+    } else if let Some(s) = payload.downcast_ref::<&'static str>(){
+        return s.to_string();
     } else {
         "unknown payload type got".to_string()
     }
@@ -70,7 +72,9 @@ impl ExecutionStorage {
 
 // thread_local! gives each thread its own private copy of the variable.
 thread_local! {
-    // white board for each individual thrad
+    // white board for each individual thrad for storing id
+    // again each thread will get tiny memory to store one id.
+    // Cell is a box that lets you change what's inside, even if the box itself is not mutable.
     static CURRENT_OPERATION: Cell<Option<OperationId>> = const {
         Cell::new(None)
     };
@@ -78,6 +82,7 @@ thread_local! {
     //so basically  execa_stor is name of process of accessing storage but storage is its actual storage. we need name for its content we cant access it by just exec_storage
     // it actually a power we give to thread that lets access content of a struct.
     // basically we want 1 shared memory that needs to be shared among many threads. if we keep outside a thread/ operation will update it modify info
+    // RefCell is a box that lets you borrow mutable access to what's inside, even if the box itself is not mutable.
     static EXECUTION_STORAGE: RefCell<ExecutionStorage> = {
         RefCell::new(ExecutionStorage::new())
     };
@@ -106,12 +111,21 @@ where
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe({ || operation_fn() }));
 
     let final_result = match result {
-        Ok(value) => value,
+        Ok(value) => {
+            EXECUTION_STORAGE.with(|storage| {
+                let mut storage = storage.borrow_mut();
+                if let Some(operation) =storage.get_mut(id){
+                    operation.end_time = Some(Instant::now());
+                }
+            });
+            value
+        }
         Err(payload) => {
             let message = extract_message(&payload);
             EXECUTION_STORAGE.with(|storage| {
                 let mut storage = storage.borrow_mut();
                 if let Some(operation) = storage.get_mut(id) {
+                    operation.end_time = Some(Instant::now());
                     operation.status = OperationStatus::Failed;
                     operation.failure_reason = Some(message);
                 }
@@ -129,21 +143,25 @@ mod tests {
     use super::*;
 
     #[test]
+    //1
     fn trace_returns_operation_result() {
         let result = trace("addition", || 2 + 5);
         assert_eq!(result, 7);
     }
     #[test]
+    //2
     fn trace_preserves_resul() {
         let result = trace("database_query", || Err::<(), &str>("database timeout"));
         assert_eq!(result, Err("database timeout"));
     }
     #[test]
+    //3
     fn trace_return_string() {
         let result = trace(" can return str fn", || String::from("hello from whyfail"));
         assert_eq!(result, "hello from whyfail")
     }
     #[test]
+    //4
     fn operation_recieve_different_ids() {
         let first = NEXT_OPERATION_ID.fetch_add(1, Ordering::Relaxed);
         let second = NEXT_OPERATION_ID.fetch_add(1, Ordering::Relaxed);
@@ -163,11 +181,13 @@ mod tests {
             start_time: start,
             end_time: None,
             status: OperationStatus::Running,
+            failure_reason: None,
         };
         assert_eq!(operation.id.0, 42);
         assert_eq!(operation.name, "database_query");
     }
     #[test]
+    //5
     fn operation_records_end_time() {
         let start = Instant::now();
 
@@ -178,12 +198,14 @@ mod tests {
             start_time: start,
             end_time: None,
             status: OperationStatus::Running,
+            failure_reason: None,
         };
         assert!(operation.end_time.is_none());
         operation.end_time = Some(Instant::now());
         assert!(operation.end_time.is_some());
     }
     #[test]
+    //6
     fn nested_operations_restore_context() {
         assert_eq!(CURRENT_OPERATION.with(|current| current.get()), None);
         trace("outer", || {
@@ -200,6 +222,7 @@ mod tests {
         assert_eq!(CURRENT_OPERATION.with(|current| current.get()), None);
     }
     #[test]
+    //7
     fn nested_operation_has_parent() {
         trace("outer", || {
             let outer_id = CURRENT_OPERATION.with(|current| current.get().unwrap());
@@ -210,6 +233,7 @@ mod tests {
         });
     }
     #[test]
+    //8
     fn operation_stores_parent_id() {
         let parent_id = OperationId(100);
         let operation_id = OperationId(20);
@@ -221,10 +245,12 @@ mod tests {
             start_time: Instant::now(),
             end_time: None,
             status: OperationStatus::Running,
+            failure_reason: None,
         };
         assert_eq!(operation.parent_id, Some(parent_id));
     }
     #[test]
+    //9
     fn execution_store_can_store_operation() {
         let mut store = ExecutionStorage::new();
         let operation = Operation {
@@ -234,6 +260,7 @@ mod tests {
             start_time: Instant::now(),
             end_time: None,
             status: OperationStatus::Running,
+            failure_reason: None,
         };
         store.insert(operation);
         let stored = store.get(OperationId(100));
@@ -241,6 +268,7 @@ mod tests {
         assert_eq!(stored.unwrap().name, "database_query")
     }
     #[test]
+    //10
     fn execution_storage_records_nested_operations() {
         let mut inner_id = None;
         let mut outer_id = None;
@@ -265,6 +293,7 @@ mod tests {
         })
     }
     #[test]
+    //11
     fn operation_starts_as_running() {
         let id = OperationId(1);
         let op = Operation::new(id, "test".to_string(), None);
@@ -272,6 +301,7 @@ mod tests {
     }
 
     #[test]
+    //12
     fn panicking_operation_is_detected() {
         let result = std::panic::catch_unwind(|| {
             trace("failing_operation", || {
@@ -281,12 +311,8 @@ mod tests {
         assert!(result.is_err());
     }
     #[test]
+    //13
     fn panicking_operation_records_str_message() {
-        /*
-         need to trigger 41 line
-         for his to run we need to trigger trace() 
-         to 
-        */
         let mut op_id =None;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             trace("str_panic", || {
@@ -294,12 +320,30 @@ mod tests {
                 panic!("this is a &str panic message");
             });
         }));
-        assert!(resultis_err());
+        assert!(result.is_err());
         let id = op_id.unwrap();
         EXECUTION_STORAGE.with(|storage| {
             let storage = storage.borrow();
             let op= storage.get(id).unwrap();
-            assert_eq(op.failure_reason.as_deref(), Some(" this is a &str panic message "))
+            assert_eq!(op.failure_reason.as_deref(), Some("this is a &str panic message"))
+        })
+    }
+    #[test]
+    //14
+    fn panicking_operation_records_string_message(){
+        let mut op_id = None; 
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            trace ("string_panic", || {
+                op_id = CURRENT_OPERATION.with(|current| current.get());
+                panic!("this is a &str panic message");
+            });
+        }));
+        assert!(result.is_err());
+        let id = op_id.unwrap();
+        EXECUTION_STORAGE.with(|storage| {
+            let storage = storage.borrow();
+            let op= storage.get(id).unwrap();
+            assert_eq!(op.failure_reason.as_deref(), Some("this is a &str panic message"));
         })
     }
 

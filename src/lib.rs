@@ -8,7 +8,7 @@ use std::time::Instant;
 pub enum OperationStatus {
     Running,
     Success,
-    Failed,
+    Failed,  
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
@@ -282,6 +282,25 @@ mod tests {
     }
     #[test]
     fn panicking_operation_records_str_message() {
-        //
+        /*
+         need to trigger 41 line
+         for his to run we need to trigger trace() 
+         to 
+        */
+        let mut op_id =None;
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            trace("str_panic", || {
+                op_id = CURRENT_OPERATION.with(|current| current.get());
+                panic!("this is a &str panic message");
+            });
+        }));
+        assert!(resultis_err());
+        let id = op_id.unwrap();
+        EXECUTION_STORAGE.with(|storage| {
+            let storage = storage.borrow();
+            let op= storage.get(id).unwrap();
+            assert_eq(op.failure_reason.as_deref(), Some(" this is a &str panic message "))
+        })
     }
+
 }

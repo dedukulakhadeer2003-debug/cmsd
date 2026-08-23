@@ -8,7 +8,7 @@ use std::time::Instant;
 pub enum OperationStatus {
     Running,
     Success,
-    Failed,  
+    Failed,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
@@ -43,7 +43,7 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
         return s.to_string();
     } else if let Some(s) = payload.downcast_ref::<String>() {
         return s.clone();
-    } else if let Some(s) = payload.downcast_ref::<&'static str>(){
+    } else if let Some(s) = payload.downcast_ref::<&'static str>() {
         return s.to_string();
     } else {
         "unknown payload type got".to_string()
@@ -114,10 +114,12 @@ where
         Ok(value) => {
             EXECUTION_STORAGE.with(|storage| {
                 let mut storage = storage.borrow_mut();
-                if let Some(operation) =storage.get_mut(id){
+                if let Some(operation) = storage.get_mut(id) {
                     operation.end_time = Some(Instant::now());
+                    operation.status = OperationStatus::Success;
                 }
             });
+            CURRENT_OPERATION.with(|current| current.set(previous_operation));
             value
         }
         Err(payload) => {
@@ -130,10 +132,10 @@ where
                     operation.failure_reason = Some(message);
                 }
             });
+            CURRENT_OPERATION.with(|current| current.set(previous_operation));
             std::panic::resume_unwind(payload);
         }
     };
-    CURRENT_OPERATION.with(|current| current.set(previous_operation));
     final_result
 }
 
@@ -313,7 +315,7 @@ mod tests {
     #[test]
     //13
     fn panicking_operation_records_str_message() {
-        let mut op_id =None;
+        let mut op_id = None;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             trace("str_panic", || {
                 op_id = CURRENT_OPERATION.with(|current| current.get());
@@ -324,27 +326,32 @@ mod tests {
         let id = op_id.unwrap();
         EXECUTION_STORAGE.with(|storage| {
             let storage = storage.borrow();
-            let op= storage.get(id).unwrap();
-            assert_eq!(op.failure_reason.as_deref(), Some("this is a &str panic message"))
+            let op = storage.get(id).unwrap();
+            assert_eq!(
+                op.failure_reason.as_deref(),
+                Some("this is a &str panic message")
+            )
         })
     }
     #[test]
     //14
-    fn panicking_operation_records_string_message(){
-        let mut op_id = None; 
+    fn panicking_operation_records_string_message() {
+        let mut op_id = None;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            trace ("string_panic", || {
+            trace("string_panic", || {
                 op_id = CURRENT_OPERATION.with(|current| current.get());
-                panic!("this is a &str panic message");
+                panic!("this is a string panic message");
             });
         }));
         assert!(result.is_err());
         let id = op_id.unwrap();
         EXECUTION_STORAGE.with(|storage| {
             let storage = storage.borrow();
-            let op= storage.get(id).unwrap();
-            assert_eq!(op.failure_reason.as_deref(), Some("this is a &str panic message"));
+            let op = storage.get(id).unwrap();
+            assert_eq!(
+                op.failure_reason.as_deref(),
+                Some("this is a string panic message")
+            );
         })
     }
-
 }

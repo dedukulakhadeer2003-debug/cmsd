@@ -108,7 +108,7 @@ where
         previous
     });
     println!("[whyfail]  started: {} (id = {})", name, id.0);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe({ || operation_fn() }));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| operation_fn()));
 
     let final_result = match result {
         Ok(value) => {
@@ -121,7 +121,7 @@ where
             value
         }
         Err(payload) => {
-            let message = extract_message(&payload);
+            let message = extract_message(&*payload);
             EXECUTION_STORAGE.with(|storage| {
                 let mut storage = storage.borrow_mut();
                 if let Some(operation) = storage.get_mut(id) {

@@ -50,12 +50,9 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
-
-
 pub struct FailurePath {
-    pub operations:Vec<OperationId>,
+    pub operations: Vec<OperationId>,
 }
-
 
 pub struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
@@ -73,36 +70,34 @@ impl ExecutionStorage {
         self.operations.get(&id)
     }
     pub fn get_mut(&mut self, id: OperationId) -> Option<&mut Operation> {
-        self.operations.get_mut(&id)        
+        self.operations.get_mut(&id)
     }
 
-    pub fn build_failure_pat(&self, id: OperationId) ->FailurePath{
+    pub fn build_failure_pat(&self, id: OperationId) -> FailurePath {
         let mut path = Vec::new();
         let mut current_op_id = id;
-        while let Some(next_op_id) =  self.get(current_op_id).and_then(|op| op.parent_id){
+        while let Some(next_op_id) = self.get(current_op_id).and_then(|op| op.parent_id) {
             path.push(current_op_id);
-            current_op_id= next_op_id;
+            current_op_id = next_op_id;
         }
         path.reverse();
-        return  FailurePath {operations: path}  
+        return FailurePath { operations: path };
     }
 
-    pub fn find_children( &self, parent: OperationId) ->Vec<OperationId>{
+    pub fn find_children(&self, parent: OperationId) -> Vec<OperationId> {
         self.operations
-        .values()
-        .filter(|op| op.parent_id ==Some(parent))
-        .map(|op| op.id)
-        .collect()
+            .values()
+            .filter(|op| op.parent_id == Some(parent))
+            .map(|op| op.id)
+            .collect()
     }
-    pub fn find_failed_operations(&self) -> Vec<OperationId>{
-         self.operations
-        .values()
-        .filter(|op| op.status ==OperationStatus::Failed)
-        .map(|op| op.id)
-        .collect()
+    pub fn find_failed_operations(&self) -> Vec<OperationId> {
+        self.operations
+            .values()
+            .filter(|op| op.status == OperationStatus::Failed)
+            .map(|op| op.id)
+            .collect()
     }
-
-
 }
 
 // thread_local! gives each thread its own private copy of the variable.
@@ -174,7 +169,7 @@ where
     };
     final_result
 }
- 
+
 #[cfg(test)]
 
 mod tests {
@@ -389,5 +384,23 @@ mod tests {
                 Some("this is a string panic message")
             );
         })
+    }
+
+    #[test]
+    //15
+    fn single_operation_failure(){
+        let mut op_id= None;
+        let result =   std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            trace("database", || {
+                op_id = CURRENT_OPERATION.with(|current| current.get());
+                panic!("database error");
+             });
+        }));  
+        assert!(result.is_err());
+        EXECUTION_STORAGE.with(|storage| {
+            let storage = storage.borrow();
+            let failed = storage.find_failed_operations();
+            assert!(failed.contains(&op_id.unwrap()));
+        });        
     }
 }

@@ -52,7 +52,10 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
 
 pub fn find_children(&self, parent: OperationId) ->Vec<OperationId>{
     self.operations
-        .values
+        .values()
+        .filter(|op| op.parent_id ==Some(parent))
+        .map(|op| op.id)
+        .collect()
 }
 
 pub struct ExecutionStorage {

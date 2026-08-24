@@ -58,6 +58,23 @@ pub fn find_children(&self, parent: OperationId) ->Vec<OperationId>{
         .collect()
 }
 
+pub fn find_failed_operations(&self) -> Vec<OperationId>{
+    self.operations
+        .values()
+        .filter(|op| op.status ==OperationStatus::Failed)
+        .map(|op| op.id)
+        .collect()
+}
+
+pub struct FailurePath {
+    pub operations:Vec<OperationId>,
+}
+
+
+impl 
+
+
+
 pub struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
 }

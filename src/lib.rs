@@ -50,6 +50,11 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
+pub fn find_children(&self, parent: OperationId) ->Vec<OperationId>{
+    self.operations
+        .values
+}
+
 pub struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
 }
@@ -67,6 +72,10 @@ impl ExecutionStorage {
     }
     pub fn get_mut(&mut self, id: OperationId) -> Option<&mut Operation> {
         self.operations.get_mut(&id)
+            .values()
+            .filter(|op| op.parent_id==Some(parent))
+            .map(|op| op.id) // it literally extract one field ( id) from that entire operaion
+            .collect()
     }
 }
 
@@ -83,6 +92,7 @@ thread_local! {
     // it actually a power we give to thread that lets access content of a struct.
     // basically we want 1 shared memory that needs to be shared among many threads. if we keep outside a thread/ operation will update it modify info
     // RefCell is a box that lets you borrow mutable access to what's inside, even if the box itself is not mutable.
+    // structs with all their fields (name, status, failure_reason, etc.),
     static EXECUTION_STORAGE: RefCell<ExecutionStorage> = {
         RefCell::new(ExecutionStorage::new())
     };

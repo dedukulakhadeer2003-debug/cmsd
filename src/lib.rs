@@ -71,9 +71,6 @@ pub struct FailurePath {
 }
 
 
-impl 
-
-
 
 pub struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
@@ -97,6 +94,11 @@ impl ExecutionStorage {
             .map(|op| op.id) // it literally extract one field ( id) from that entire operaion
             .collect()
     }
+
+    pub  build_failure_pat(&self, id: OperationId) ->FailurePath{
+        
+    }
+
 }
 
 // thread_local! gives each thread its own private copy of the variable.

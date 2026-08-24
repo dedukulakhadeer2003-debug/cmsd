@@ -50,26 +50,11 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
-pub fn find_children(&self, parent: OperationId) ->Vec<OperationId>{
-    self.operations
-        .values()
-        .filter(|op| op.parent_id ==Some(parent))
-        .map(|op| op.id)
-        .collect()
-}
 
-pub fn find_failed_operations(&self) -> Vec<OperationId>{
-    self.operations
-        .values()
-        .filter(|op| op.status ==OperationStatus::Failed)
-        .map(|op| op.id)
-        .collect()
-}
 
 pub struct FailurePath {
     pub operations:Vec<OperationId>,
 }
-
 
 
 pub struct ExecutionStorage {
@@ -88,16 +73,35 @@ impl ExecutionStorage {
         self.operations.get(&id)
     }
     pub fn get_mut(&mut self, id: OperationId) -> Option<&mut Operation> {
-        self.operations.get_mut(&id)
-            .values()
-            .filter(|op| op.parent_id==Some(parent))
-            .map(|op| op.id) // it literally extract one field ( id) from that entire operaion
-            .collect()
+        self.operations.get_mut(&id)        
     }
 
-    pub  build_failure_pat(&self, id: OperationId) ->FailurePath{
-        
+    pub fn build_failure_pat(&self, id: OperationId) ->FailurePath{
+        let mut path = Vec::new();
+        let mut current_op_id = id;
+        while let Some(next_op_id) =  self.get(current_op_id).and_then(|op| op.parent_id){
+            path.push(current_op_id);
+            current_op_id= next_op_id;
+        }
+        path.reverse();
+        return  FailurePath {operations: path}  
     }
+
+    pub fn find_children( &self, parent: OperationId) ->Vec<OperationId>{
+        self.operations
+        .values()
+        .filter(|op| op.parent_id ==Some(parent))
+        .map(|op| op.id)
+        .collect()
+    }
+    pub fn find_failed_operations(&self) -> Vec<OperationId>{
+         self.operations
+        .values()
+        .filter(|op| op.status ==OperationStatus::Failed)
+        .map(|op| op.id)
+        .collect()
+    }
+
 
 }
 
@@ -170,7 +174,7 @@ where
     };
     final_result
 }
-
+ 
 #[cfg(test)]
 
 mod tests {

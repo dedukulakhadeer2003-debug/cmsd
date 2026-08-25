@@ -492,7 +492,7 @@ mod tests {
                 
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 trace("cache", || {
-                    database_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+                    cache_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
                     panic!("cache error");
                 });
                 })); 
@@ -507,7 +507,7 @@ mod tests {
 
          EXECUTION_STORAGE.with(|storage| {
             let storage_ref = storage.borrow();
-            let failed= storage_ref,find_failed_operations();
+            let failed= storage_ref.find_failed_operations();
             assert!(failed.contains(&database_id.unwrap()));
             assert!(failed.contains(&cache_id.unwrap()));
          });

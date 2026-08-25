@@ -403,4 +403,29 @@ mod tests {
             assert!(failed.contains(&op_id.unwrap()));
         });        
     }
+
+    #[test]
+    //16
+    fn one_level_nesting_failure(){
+        let mut database_id = None; //inner
+        let mut service_id = None;
+        trace("service", || {
+            service_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+            println!("service runs");
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {trace("database", || {
+                database_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+                panic!("database error");
+            });
+         })); 
+        });
+        EXECUTION_STORAGE.with(|storage| {
+            let storage_ref = storage.borrow();
+            let a = storage_ref.get(service_id.unwrap());
+            let b = storage_ref.get(database_id.unwrap());
+            assert!(a.is_some());
+            assert!(b.is_some());
+            let failed = storage_ref.find_failed_operations();
+            assert!(failed.contains(&database_id.unwrap()));
+        });
+    }
 }

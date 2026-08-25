@@ -388,35 +388,36 @@ mod tests {
 
     #[test]
     //15
-    fn single_operation_failure(){
-        let mut op_id= None;
-        let result =   std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    fn single_operation_failure() {
+        let mut op_id = None;
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             trace("database", || {
                 op_id = CURRENT_OPERATION.with(|current| current.get());
                 panic!("database error");
-             });
-        }));  
+            });
+        }));
         assert!(result.is_err());
         EXECUTION_STORAGE.with(|storage| {
             let storage = storage.borrow();
             let failed = storage.find_failed_operations();
             assert!(failed.contains(&op_id.unwrap()));
-        });        
+        });
     }
 
     #[test]
     //16
-    fn one_level_nesting_failure(){
+    fn one_level_nesting_failure() {
         let mut database_id = None; //inner
         let mut service_id = None;
         trace("service", || {
             service_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
             println!("service runs");
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {trace("database", || {
-                database_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
-                panic!("database error");
-            });
-         })); 
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                trace("database", || {
+                    database_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+                    panic!("database error");
+                });
+            }));
         });
         EXECUTION_STORAGE.with(|storage| {
             let storage_ref = storage.borrow();
@@ -428,4 +429,94 @@ mod tests {
             assert!(failed.contains(&database_id.unwrap()));
         });
     }
+
+    #[test]
+    //17
+    fn three_children_one_failure(){
+        let mut request_id =None;
+        let mut cache_id = None;
+        let mut service_id = None;
+        let mut database_id =None;
+        let mut logger_id  =None;
+        trace("request", || {
+            request_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+            println!("request runs");
+            
+            trace("cache", || {
+            cache_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+            println!("cache runs");
+            });
+
+            trace("service", || {
+            service_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+            println!("service runs");
+            
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                trace("database", || {
+                    database_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+                    panic!("database error");
+                });
+                }));    
+            }); 
+
+            trace("logger", || {
+            logger_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+            println!("logger runs");
+            }); 
+        });
+        EXECUTION_STORAGE.with(|storage| {
+            let storage_ref = storage.borrow();
+            let failed = storage_ref.find_failed_operations();
+            assert!(failed.contains(&database_id.unwrap()));
+            assert!(!failed.contains(&cache_id.unwrap()));
+            assert!(!failed.contains(&logger_id.unwrap()));
+
+            let children = storage_ref.find_children(request_id.unwrap());
+            assert!(children.contains(&cache_id.unwrap()));
+            assert!(children.contains(&service_id.unwrap()));
+            assert!(children.contains(&logger_id.unwrap()));
+        });
+    }
+
+    #[test]
+    //18
+
+    fn multiple_children_failures(){
+        let mut request_id =None;
+        let mut cache_id = None;
+        let mut database_id =None; 
+
+         trace("request", || {
+            request_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+            println!("request runs");
+                
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                trace("cache", || {
+                    database_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+                    panic!("cache error");
+                });
+                })); 
+                
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                trace("database", || {
+                    database_id = Some(CURRENT_OPERATION.with(|current| current.get().unwrap()));
+                    panic!("database error");
+                });
+                })); 
+         });
+
+         EXECUTION_STORAGE.with(|storage| {
+            let storage_ref = storage.borrow();
+            let failed= storage_ref,find_failed_operations();
+            assert!(failed.contains(&database_id.unwrap()));
+            assert!(failed.contains(&cache_id.unwrap()));
+         });
+
+
+    }
+
+
+
+
+
 }

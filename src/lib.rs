@@ -282,6 +282,7 @@ mod tests {
         };
         assert_eq!(operation.parent_id, Some(parent_id));
     }
+    
     #[test]
     //9
     fn execution_store_can_store_operation() {

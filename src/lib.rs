@@ -73,12 +73,12 @@ impl ExecutionStorage {
         self.operations.get_mut(&id)
     }
 
-    pub fn build_failure_pat(&self, id: OperationId) -> FailurePath {
+    pub fn build_failure_path(&self, id: OperationId) -> FailurePath {
         let mut path = Vec::new();
         let mut current_op_id = id;
         while let Some(next_op_id) = self.get(current_op_id).and_then(|op| op.parent_id) {
             path.push(current_op_id);
-            current_op_id = next_op_id;
+            current_op_id = next_op_id; 
         }
         path.reverse();
         return FailurePath { operations: path };
@@ -99,6 +99,13 @@ impl ExecutionStorage {
             .collect()
     }
 }
+
+pub struct FailureReport {
+    pub failed_operation: OperationId,
+    pub failure_reason: String,
+    pub failed_path: FailurePath,
+}
+
 
 // thread_local! gives each thread its own private copy of the variable.
 thread_local! {
@@ -282,7 +289,7 @@ mod tests {
         };
         assert_eq!(operation.parent_id, Some(parent_id));
     }
-    
+
     #[test]
     //9
     fn execution_store_can_store_operation() {

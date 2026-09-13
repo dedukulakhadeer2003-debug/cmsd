@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::time::{Instant, Duration};
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 
 pub enum OperationStatus {
@@ -36,6 +36,13 @@ impl Operation {
             failure_reason: None,
         }
     }
+
+    pub fn duration(&self) -> Option<Duration> {
+        let duration_of_op = self.end_time.map(|end| end-self.start_time);
+        duration_of_op
+    }
+
+
 }
 
 pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {

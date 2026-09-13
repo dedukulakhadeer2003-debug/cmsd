@@ -103,7 +103,14 @@ impl ExecutionStorage {
             self.find_children(id).iter().any(|child| self.get(*child).unwrap().status==OperationStatus::Failed) 
     }
 
-   // pub 
+    pub fn find_root_failures(&self) -> Vec<OperationId> {
+        self.find_failed_operations()
+        .iter()
+        .filter(|id| !self.has_failed_children(**id))
+        .copied()
+        .collect()
+
+    }
 
 
 
@@ -115,7 +122,6 @@ pub struct FailureReport {
     pub failed_path: FailurePath,
 }
 
- 
 
 
 // thread_local! gives each thread its own private copy of the variable.

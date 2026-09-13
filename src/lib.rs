@@ -98,6 +98,15 @@ impl ExecutionStorage {
             .map(|op| op.id)
             .collect()
     }
+
+    pub fn has_failed_children(&self, id: OperationId) -> bool{
+            self.find_children(id).iter().any(|child| self.get(*child).unwrap().status==OperationStatus::Failed) 
+    }
+
+   // pub 
+
+
+
 }
 
 pub struct FailureReport {
@@ -105,6 +114,8 @@ pub struct FailureReport {
     pub failure_reason: String,
     pub failed_path: FailurePath,
 }
+
+ 
 
 
 // thread_local! gives each thread its own private copy of the variable.

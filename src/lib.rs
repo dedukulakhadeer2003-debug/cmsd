@@ -80,7 +80,7 @@ impl ExecutionStorage {
             path.push(current_op_id);
             current_op_id = next_op_id; 
         }
-        path.push(current_op_id)
+        path.push(current_op_id);
         path.reverse();
         return FailurePath { operations: path };
     }

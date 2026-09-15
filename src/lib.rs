@@ -59,7 +59,7 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
 }
 
 pub struct FailurePath {
-    pub operations: Vec<String>,
+    pub operations: Vec<Rc<str>>,
 }
 
 pub struct ExecutionStorage {
@@ -87,16 +87,14 @@ impl ExecutionStorage {
        // let mut current_op_name
         while let Some(next_op_id) = self.get(current_op_id).and_then(|op| op.parent_id) {
             let name = self.get(current_op_id).unwrap().name.clone();
-            path.push(name.to_string());
+            path.push(name);
             current_op_id = next_op_id;
         }
         let name = self.get(current_op_id).unwrap().name.clone();
-        path.push(name.to_string());
+        path.push(name);
         path.reverse();
         return FailurePath { operations: path };
     }
-
-
 
     pub fn find_children(&self, parent: OperationId) -> Vec<OperationId> {
         self.operations
@@ -378,7 +376,7 @@ mod tests {
     //11
     fn operation_starts_as_running() {
         let id = OperationId(1);
-        let op = Operation::new(id, "test".to_string(), None);
+        let op = Operation::new(id, Rc::from("test"), None);
         assert_eq!(op.status, OperationStatus::Running);
     }
 
@@ -561,5 +559,5 @@ mod tests {
             assert!(failed.contains(&database_id.unwrap()));
             assert!(failed.contains(&cache_id.unwrap()));
         });
-    }
-}
+    }}
+

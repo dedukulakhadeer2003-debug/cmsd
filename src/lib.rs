@@ -263,7 +263,7 @@ mod tests {
             failure_reason: None,
         };
         assert_eq!(operation.id.0, 42);
-        assert_eq!(operation.name, "database_query");
+        assert_eq!(operation.name, "database_query".into());
     }
     #[test]
     //5
@@ -345,7 +345,7 @@ mod tests {
         store.insert(operation);
         let stored = store.get(OperationId(100));
         assert!(stored.is_some());
-        assert_eq!(stored.unwrap().name, "database_query")
+        assert_eq!(stored.unwrap().name, "database_query".into())
     }
     #[test]
     //10
@@ -559,5 +559,42 @@ mod tests {
             assert!(failed.contains(&database_id.unwrap()));
             assert!(failed.contains(&cache_id.unwrap()));
         });
-    }}
+    }
 
+    #[test]
+    //19
+
+    fn has_failure_children_detects_failed_children() {
+        // basically it needs a parent id with failed child
+        // need status to be hard coded 
+        let parent_id = OperationId(1);
+        let child_id = OperationId(2);
+        let parent_operation = Operation {
+            id: parent_id,
+            name: Rc::from("database_query"),
+            parent_id: None,
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Success,
+            failure_reason: None,
+        };
+
+        let child_operation = Operation {
+            id: child_id,
+            name: Rc::from("database_query"),
+            parent_id: Some(parent_id),
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Failed,
+            failure_reason: None,
+        };
+    
+
+    let mut store = ExecutionStorage::new();
+    store.insert(parent_operation);
+    store.insert(child_operation);
+    let analyzer = FailureAnalyzer::new(&store);
+    assert!(analyzer.has_failed_children(parent_id));
+    }
+
+}

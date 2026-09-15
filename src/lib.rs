@@ -1,9 +1,9 @@
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use std::rc::Rc;
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 
 pub enum OperationStatus {
@@ -11,8 +11,6 @@ pub enum OperationStatus {
     Success,
     Failed,
 }
-
-
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct OperationId(u64);
@@ -84,7 +82,7 @@ impl ExecutionStorage {
     pub fn build_failure_path(&self, id: OperationId) -> FailurePath {
         let mut path = Vec::new();
         let mut current_op_id = id;
-       // let mut current_op_name
+        // let mut current_op_name
         while let Some(next_op_id) = self.get(current_op_id).and_then(|op| op.parent_id) {
             let name = self.get(current_op_id).unwrap().name.clone();
             path.push(name);
@@ -113,32 +111,32 @@ impl ExecutionStorage {
     }
 }
 
-
 pub struct FailureAnalyzer<'a> {
-    // so here we need to do something that gives connection to  above execstorage. 
+    // so here we need to do something that gives connection to  above execstorage.
     storage: &'a ExecutionStorage,
 }
 
-impl <'a> FailureAnalyzer<'a> {
-    pub fn new(storage: &'a ExecutionStorage) ->Self {
-        Self {storage}
+impl<'a> FailureAnalyzer<'a> {
+    pub fn new(storage: &'a ExecutionStorage) -> Self {
+        Self { storage }
     }
 
     pub fn has_failed_children(&self, id: OperationId) -> bool {
-        self.storage.find_children(id)
+        self.storage
+            .find_children(id)
             .iter()
             .any(|child| self.storage.get(*child).unwrap().status == OperationStatus::Failed)
     }
 
     pub fn find_root_failures(&self) -> Vec<OperationId> {
-        self.storage.find_failed_operations()
+        self.storage
+            .find_failed_operations()
             .iter()
             .filter(|id| !self.has_failed_children(**id))
             .copied()
             .collect()
     }
 }
-
 
 pub struct FailureReport {
     pub failed_operation: OperationId,
@@ -566,7 +564,7 @@ mod tests {
 
     fn has_failure_children_detects_failed_children() {
         // basically it needs a parent id with failed child
-        // need status to be hard coded 
+        // need status to be hard coded
         let parent_id = OperationId(1);
         let child_id = OperationId(2);
         let parent_operation = Operation {
@@ -588,13 +586,63 @@ mod tests {
             status: OperationStatus::Failed,
             failure_reason: None,
         };
-    
 
-    let mut store = ExecutionStorage::new();
-    store.insert(parent_operation);
-    store.insert(child_operation);
-    let analyzer = FailureAnalyzer::new(&store);
-    assert!(analyzer.has_failed_children(parent_id));
+        let mut store = ExecutionStorage::new();
+        store.insert(parent_operation);
+        store.insert(child_operation);
+        let analyzer = FailureAnalyzer::new(&store);
+        assert!(analyzer.has_failed_children(parent_id));
     }
+
+    #[test]
+    //20 build_failure_path
+
+    fn checking_build_failure_path() {
+        let request_id = OperationId(1);
+        let service_id = OperationId(2);
+        let database_id = OperationId(3);
+        let request_operation = Operation {
+            id: request_id,
+            name: Rc::from("request_query"),
+            parent_id: None,
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Success,
+            failure_reason: None,
+        };
+
+        let  service_operation = Operation {
+            id: service_id,
+            name: Rc::from("service_query"),
+            parent_id: Some(request_id),
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Success,
+            failure_reason: None,
+        };
+
+
+        let database_operation = Operation {
+            id: database_id,
+            name: Rc::from("database_query"),
+            parent_id: Some(service_id),
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Failed,
+            failure_reason: None,
+        };
+
+        let mut storage = ExecutionStorage::new();
+        storage.insert(request_operation);
+        storage.insert(service_operation);
+        storage.insert(database_operation);  
+        let path = storage.build_failure_path(database_id);
+        let path_names:Vec<&str> =path.operations.iter(). map(|s| &**s).collect();
+        assert_eq!(path_names, ["request_query", "service_query", "database_query"]);
+ 
+    }
+
+
+
 
 }

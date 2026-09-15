@@ -2,7 +2,8 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
+use std::rc::Rc;
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 
 pub enum OperationStatus {
@@ -11,12 +12,14 @@ pub enum OperationStatus {
     Failed,
 }
 
+
+
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct OperationId(u64);
 
 pub struct Operation {
     pub id: OperationId,
-    pub name: String,
+    pub name: Rc<str>,
     pub parent_id: Option<OperationId>,
     pub start_time: Instant,
     pub end_time: Option<Instant>,
@@ -25,7 +28,7 @@ pub struct Operation {
 }
 
 impl Operation {
-    pub fn new(id: OperationId, name: String, parent_id: Option<OperationId>) -> Self {
+    pub fn new(id: OperationId, name: Rc<str>, parent_id: Option<OperationId>) -> Self {
         Self {
             id,
             name,
@@ -38,11 +41,9 @@ impl Operation {
     }
 
     pub fn duration(&self) -> Option<Duration> {
-        let duration_of_op = self.end_time.map(|end| end-self.start_time);
+        let duration_of_op = self.end_time.map(|end| end - self.start_time);
         duration_of_op
     }
-
-
 }
 
 pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
@@ -58,7 +59,7 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
 }
 
 pub struct FailurePath {
-    pub operations: Vec<OperationId>,
+    pub operations: Vec<String>,
 }
 
 pub struct ExecutionStorage {
@@ -83,14 +84,19 @@ impl ExecutionStorage {
     pub fn build_failure_path(&self, id: OperationId) -> FailurePath {
         let mut path = Vec::new();
         let mut current_op_id = id;
+       // let mut current_op_name
         while let Some(next_op_id) = self.get(current_op_id).and_then(|op| op.parent_id) {
-            path.push(current_op_id);
-            current_op_id = next_op_id; 
+            let name = self.get(current_op_id).unwrap().name.clone();
+            path.push(name.to_string());
+            current_op_id = next_op_id;
         }
-        path.push(current_op_id);
+        let name = self.get(current_op_id).unwrap().name.clone();
+        path.push(name.to_string());
         path.reverse();
         return FailurePath { operations: path };
     }
+
+
 
     pub fn find_children(&self, parent: OperationId) -> Vec<OperationId> {
         self.operations
@@ -99,6 +105,7 @@ impl ExecutionStorage {
             .map(|op| op.id)
             .collect()
     }
+
     pub fn find_failed_operations(&self) -> Vec<OperationId> {
         self.operations
             .values()
@@ -106,29 +113,40 @@ impl ExecutionStorage {
             .map(|op| op.id)
             .collect()
     }
+}
 
-    pub fn has_failed_children(&self, id: OperationId) -> bool{
-            self.find_children(id).iter().any(|child| self.get(*child).unwrap().status==OperationStatus::Failed) 
+
+pub struct FailureAnalyzer<'a> {
+    // so here we need to do something that gives connection to  above execstorage. 
+    storage: &'a ExecutionStorage,
+}
+
+impl <'a> FailureAnalyzer<'a> {
+    pub fn new(storage: &'a ExecutionStorage) ->Self {
+        Self {storage}
+    }
+
+    pub fn has_failed_children(&self, id: OperationId) -> bool {
+        self.storage.find_children(id)
+            .iter()
+            .any(|child| self.storage.get(*child).unwrap().status == OperationStatus::Failed)
     }
 
     pub fn find_root_failures(&self) -> Vec<OperationId> {
-        self.find_failed_operations()
-        .iter()
-        .filter(|id| !self.has_failed_children(**id))
-        .copied()
-        .collect()
-
+        self.storage.find_failed_operations()
+            .iter()
+            .filter(|id| !self.has_failed_children(**id))
+            .copied()
+            .collect()
     }
-
 }
+
 
 pub struct FailureReport {
     pub failed_operation: OperationId,
     pub failure_reason: String,
     pub failed_path: FailurePath,
 }
-
-
 
 // thread_local! gives each thread its own private copy of the variable.
 thread_local! {
@@ -157,7 +175,7 @@ where
 {
     let id = OperationId(NEXT_OPERATION_ID.fetch_add(1, Ordering::Relaxed));
     let parent_id = CURRENT_OPERATION.with(|current| current.get());
-    let operation = Operation::new(id, name.to_string(), parent_id);
+    let operation = Operation::new(id, Rc::from(name), parent_id);
 
     EXECUTION_STORAGE.with(|storage| {
         storage.borrow_mut().insert(operation); // now it is like 2 buckets operation is poured into bigger bucked operations ( which has hashmap rules ). now any modifications of this opearation should be dont with accessing operations to operation with id. Technically operation dosnt exist here.  
@@ -239,7 +257,7 @@ mod tests {
 
         let operation = Operation {
             id,
-            name: String::from("database_query"),
+            name: Rc::from("database_query"),
             parent_id: None,
             start_time: start,
             end_time: None,
@@ -256,7 +274,7 @@ mod tests {
 
         let mut operation = Operation {
             id: OperationId(1),
-            name: String::from("test"),
+            name: Rc::from("test"),
             parent_id: None,
             start_time: start,
             end_time: None,
@@ -303,7 +321,7 @@ mod tests {
 
         let operation = Operation {
             id: operation_id,
-            name: String::from("child"),
+            name: Rc::from("child"),
             parent_id: Some(parent_id),
             start_time: Instant::now(),
             end_time: None,
@@ -319,7 +337,7 @@ mod tests {
         let mut store = ExecutionStorage::new();
         let operation = Operation {
             id: OperationId(100),
-            name: String::from("database_query"),
+            name: Rc::from("database_query"),
             parent_id: None,
             start_time: Instant::now(),
             end_time: None,

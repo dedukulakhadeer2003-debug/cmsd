@@ -139,11 +139,17 @@ impl<'a> FailureAnalyzer<'a> {
     }
 }
 
+
 pub struct FailureReport {
+    pub failures: Vec<FailureEntry>,
+}
+
+pub struct FailureEntry {
     pub failed_operation: OperationId,
     pub failure_reason: Rc<str>,
     pub failed_path: FailurePath,
 }
+
 
 // thread_local! gives each thread its own private copy of the variable.
 thread_local! {

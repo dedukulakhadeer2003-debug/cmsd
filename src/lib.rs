@@ -22,7 +22,7 @@ pub struct Operation {
     pub start_time: Instant,
     pub end_time: Option<Instant>,
     pub status: OperationStatus,
-    pub failure_reason: Option<String>,
+    pub failure_reason: Option<Rc<str>>,
 }
 
 impl Operation {
@@ -56,6 +56,7 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
+#[derive(Debug,PartialEq)]
 pub struct FailurePath {
     pub operations: Vec<Rc<str>>,
 }
@@ -110,7 +111,7 @@ impl ExecutionStorage {
             .collect()
     }
 }
-
+// trace
 pub struct FailureAnalyzer<'a> {
     // so here we need to do something that gives connection to  above execstorage.
     storage: &'a ExecutionStorage,
@@ -140,7 +141,7 @@ impl<'a> FailureAnalyzer<'a> {
 
 pub struct FailureReport {
     pub failed_operation: OperationId,
-    pub failure_reason: String,
+    pub failure_reason: Rc<str>,
     pub failed_path: FailurePath,
 }
 
@@ -204,7 +205,7 @@ where
                 if let Some(operation) = storage.get_mut(id) {
                     operation.end_time = Some(Instant::now());
                     operation.status = OperationStatus::Failed;
-                    operation.failure_reason = Some(message);
+                    operation.failure_reason = Some(message.into());
                 }
             });
             CURRENT_OPERATION.with(|current| current.set(previous_operation));
@@ -642,7 +643,35 @@ mod tests {
  
     }
 
+    #[test]
+    //21
+     fn database_dailed_report(){
+        let database_id = OperationId(3);
+        let database_operation = Operation {
+            id: database_id,
+            name: Rc::from("database_query"),
+            parent_id: None,
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Failed,
+            failure_reason:Some("this is a &str panic message".to_string().into())
+,
+        };
 
-
+    let mut storage = ExecutionStorage::new();
+    storage.insert(database_operation);
+    let analyzer = FailureAnalyzer::new(&storage);
+    let path = storage.build_failure_path(database_id);
+    let report = FailureReport {
+        failed_operation: database_id,
+        failure_reason: storage.get(database_id).unwrap().failure_reason.clone().unwrap(),
+        failed_path: path,
+    };
+    
+    assert_eq!(report.failed_operation,database_id);
+    assert_eq!(report.failure_reason,"this is a &str panic message".into());
+    assert_eq!(report.failed_path, path);
+ 
+    }
 
 }

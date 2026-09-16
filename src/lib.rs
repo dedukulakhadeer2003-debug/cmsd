@@ -56,7 +56,7 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
-#[derive(Debug,PartialEq,Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FailurePath {
     pub operations: Vec<Rc<str>>,
 }
@@ -612,7 +612,7 @@ mod tests {
             failure_reason: None,
         };
 
-        let  service_operation = Operation {
+        let service_operation = Operation {
             id: service_id,
             name: Rc::from("service_query"),
             parent_id: Some(request_id),
@@ -621,7 +621,6 @@ mod tests {
             status: OperationStatus::Success,
             failure_reason: None,
         };
-
 
         let database_operation = Operation {
             id: database_id,
@@ -636,16 +635,18 @@ mod tests {
         let mut storage = ExecutionStorage::new();
         storage.insert(request_operation);
         storage.insert(service_operation);
-        storage.insert(database_operation);  
+        storage.insert(database_operation);
         let path = storage.build_failure_path(database_id);
-        let path_names:Vec<&str> =path.operations.iter(). map(|s| &**s).collect();
-        assert_eq!(path_names, ["request_query", "service_query", "database_query"]);
- 
+        let path_names: Vec<&str> = path.operations.iter().map(|s| &**s).collect();
+        assert_eq!(
+            path_names,
+            ["request_query", "service_query", "database_query"]
+        );
     }
 
     #[test]
     //21
-     fn database_dailed_report(){
+    fn database_dailed_report() {
         let database_id = OperationId(3);
         let database_operation = Operation {
             id: database_id,
@@ -654,24 +655,26 @@ mod tests {
             start_time: Instant::now(),
             end_time: None,
             status: OperationStatus::Failed,
-            failure_reason:Some("this is a &str panic message".to_string().into())
-,
+            failure_reason: Some("this is a &str panic message".to_string().into()),
         };
 
-    let mut storage = ExecutionStorage::new();
-    storage.insert(database_operation);
-    let analyzer = FailureAnalyzer::new(&storage);
-    let path = storage.build_failure_path(database_id);
-    let report = FailureReport {
-        failed_operation: database_id,
-        failure_reason: storage.get(database_id).unwrap().failure_reason.clone().unwrap(),
-        failed_path: path.clone(),
-    };
-    
-    assert_eq!(report.failed_operation,database_id);
-    assert_eq!(report.failure_reason,"this is a &str panic message".into());
-    assert_eq!(report.failed_path, path);
- 
-    }
+        let mut storage = ExecutionStorage::new();
+        storage.insert(database_operation);
+        let analyzer = FailureAnalyzer::new(&storage);
+        let path = storage.build_failure_path(database_id);
+        let report = FailureReport {
+            failed_operation: database_id,
+            failure_reason: storage
+                .get(database_id)
+                .unwrap()
+                .failure_reason
+                .clone()
+                .unwrap(),
+            failed_path: path.clone(),
+        };
 
+        assert_eq!(report.failed_operation, database_id);
+        assert_eq!(report.failure_reason, "this is a &str panic message".into());
+        assert_eq!(report.failed_path, path);
+    }
 }

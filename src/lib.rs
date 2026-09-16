@@ -681,7 +681,7 @@ mod tests {
     #[test]
     //22
 
-     fn nested_failure() {
+    fn nested_failure() {
         let request_id = OperationId(1);
         let service_id = OperationId(2);
         let database_id = OperationId(3);
@@ -721,25 +721,122 @@ mod tests {
         storage.insert(database_operation);
         let path = storage.build_failure_path(database_id);
 
-        let report= FailureReport {
+        let report = FailureReport {
             failed_operation: database_id,
             failure_reason: storage
-                        .get(database_id)
-                        .unwrap()
-                        .failure_reason
-                        .clone()
-                        .unwrap(),
-            failed_path: path
+                .get(database_id)
+                .unwrap()
+                .failure_reason
+                .clone()
+                .unwrap(),
+            failed_path: path,
         };
-        //let names: Vec<&str> = report.failed_path.operations.iter().map(|s| &**s).collect();
         assert_eq!(report.failed_operation, database_id);
         assert_eq!(report.failure_reason, "this is a &str panic message".into());
-        //assert_eq!(names, ["request_query", "service_query", "database_query"]  );
-        assert_eq(report.failure_path,path)
+        let names: Vec<&str> = report.failed_path.operations.iter().map(|s| &**s).collect();
+        assert_eq!(names, ["request_query", "service_query", "database_query"]);
+    }
 
-};
+    #[test]
+    //23
 
+    fn two_independent_failures_failurereport() {
+        let request_id = OperationId(1);
+        let cache_id = OperationId(2);
+        let redis_id = OperationId(3);
+        let service_id = OperationId(4);
+        let database_id = OperationId(5);
 
+        let request_operation = Operation {
+            id: request_id,
+            name: Rc::from("request_query"),
+            parent_id: None,
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Success,
+            failure_reason: None,
+        };
 
+        let cache_operation = Operation {
+            id: cache_id,
+            name: Rc::from("cache_query"),
+            parent_id: Some(request_id),
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Success,
+            failure_reason: None,
+        };
 
+        let redis_operation = Operation {
+            id: redis_id,
+            name: Rc::from("redis_query"),
+            parent_id: Some(cache_id),
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Failed,
+            failure_reason: Some("this is a &str panic message".to_string().into()),
+        };
+
+        let service_operation = Operation {
+            id: service_id,
+            name: Rc::from("service_query"),
+            parent_id: Some(request_id),
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Success,
+            failure_reason: None,
+        };
+
+        let database_operation = Operation {
+            id: database_id,
+            name: Rc::from("database_query"),
+            parent_id: Some(service_id),
+            start_time: Instant::now(),
+            end_time: None,
+            status: OperationStatus::Failed,
+            failure_reason: Some("this is a &str panic message".to_string().into()),
+        };
+
+        let mut storage = ExecutionStorage::new();
+        storage.insert(request_operation);
+        storage.insert(cache_operation);
+        storage.insert(redis_operation);
+        storage.insert(service_operation);
+        storage.insert(database_operation);
+        let path_1 = storage.build_failure_path(redis_id);
+        let report_1 = FailureReport {
+            failed_operation: redis_id,
+            failure_reason: storage
+                .get(redis_id)
+                .unwrap()
+                .failure_reason
+                .clone()
+                .unwrap(),
+            failed_path: path_1.clone(),
+        };
+        let path_2 = storage.build_failure_path(database_id);
+        let report_2 = FailureReport {
+            failed_operation: database_id,
+            failure_reason: storage
+                .get(database_id)
+                .unwrap()
+                .failure_reason
+                .clone()
+                .unwrap(),
+            failed_path: path_2.clone(),
+        };
+
+        assert_eq!(report_1.failed_operation, redis_id);
+        assert_eq!(report_2.failed_operation, database_id);
+        assert_eq!(
+            report_1.failure_reason,
+            "this is a &str panic message".into()
+        );
+        assert_eq!(
+            report_2.failure_reason,
+            "this is a &str panic message".into()
+        );
+        assert_eq!(report_1.failed_path, path_1);
+        assert_eq!(report_2.failed_path, path_2);
+    }
 }

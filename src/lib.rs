@@ -848,5 +848,14 @@ mod tests {
                 },
             ],
         };
+
+        assert_eq!(report.failures[0].failed_operation, redis_id);
+        assert_eq!(report.failures[1].failed_operation, database_id);
+        assert_eq!(report.failures[0].failure_reason, "this is a &str panic message".into());
+        assert_eq!(report.failures[1].failure_reason, "this is a &str panic message".into());
+        let names_1: Vec<&str> = report.failures[0].failed_path.operations.iter().map(|s| &**s).collect();
+        assert_eq!(names_1, ["request_query", "cache_query", "redis_query"]);
+        let names_2: Vec<&str> = report.failures[1].failed_path.operations.iter().map(|s| &**s).collect();
+        assert_eq!(names_2, ["request_query", "service_query", "database_query"]);
     }
 }

@@ -139,7 +139,6 @@ impl<'a> FailureAnalyzer<'a> {
     }
 }
 
-
 pub struct FailureReport {
     pub failures: Vec<FailureEntry>,
 }
@@ -149,7 +148,6 @@ pub struct FailureEntry {
     pub failure_reason: Rc<str>,
     pub failed_path: FailurePath,
 }
-
 
 // thread_local! gives each thread its own private copy of the variable.
 thread_local! {
@@ -669,19 +667,24 @@ mod tests {
         let analyzer = FailureAnalyzer::new(&storage);
         let path = storage.build_failure_path(database_id);
         let report = FailureReport {
-            failed_operation: database_id,
-            failure_reason: storage
-                .get(database_id)
-                .unwrap()
-                .failure_reason
-                .clone()
-                .unwrap(),
-            failed_path: path.clone(),
+            failures: vec![FailureEntry {
+                failed_operation: database_id,
+                failure_reason: storage
+                    .get(database_id)
+                    .unwrap()
+                    .failure_reason
+                    .clone()
+                    .unwrap(),
+                failed_path: path.clone(),
+            }],
         };
 
-        assert_eq!(report.failed_operation, database_id);
-        assert_eq!(report.failure_reason, "this is a &str panic message".into());
-        assert_eq!(report.failed_path, path);
+        assert_eq!(report.failures[0].failed_operation, database_id);
+        assert_eq!(
+            report.failures[0].failure_reason,
+            "this is a &str panic message".into()
+        );
+        assert_eq!(report.failures[0].failed_path, path);
     }
 
     #[test]
@@ -728,18 +731,28 @@ mod tests {
         let path = storage.build_failure_path(database_id);
 
         let report = FailureReport {
-            failed_operation: database_id,
-            failure_reason: storage
-                .get(database_id)
-                .unwrap()
-                .failure_reason
-                .clone()
-                .unwrap(),
-            failed_path: path,
+            failures: vec![FailureEntry {
+                failed_operation: database_id,
+                failure_reason: storage
+                    .get(database_id)
+                    .unwrap()
+                    .failure_reason
+                    .clone()
+                    .unwrap(),
+                failed_path: path,
+            }],
         };
-        assert_eq!(report.failed_operation, database_id);
-        assert_eq!(report.failure_reason, "this is a &str panic message".into());
-        let names: Vec<&str> = report.failed_path.operations.iter().map(|s| &**s).collect();
+        assert_eq!(report.failures[0].failed_operation, database_id);
+        assert_eq!(
+            report.failures[0].failure_reason,
+            "this is a &str panic message".into()
+        );
+        let names: Vec<&str> = report.failures[0]
+            .failed_path
+            .operations
+            .iter()
+            .map(|s| &**s)
+            .collect();
         assert_eq!(names, ["request_query", "service_query", "database_query"]);
     }
 
@@ -810,39 +823,30 @@ mod tests {
         storage.insert(service_operation);
         storage.insert(database_operation);
         let path_1 = storage.build_failure_path(redis_id);
-        let report_1 = FailureReport {
-            failed_operation: redis_id,
-            failure_reason: storage
-                .get(redis_id)
-                .unwrap()
-                .failure_reason
-                .clone()
-                .unwrap(),
-            failed_path: path_1.clone(),
-        };
         let path_2 = storage.build_failure_path(database_id);
-        let report_2 = FailureReport {
-            failed_operation: database_id,
-            failure_reason: storage
-                .get(database_id)
-                .unwrap()
-                .failure_reason
-                .clone()
-                .unwrap(),
-            failed_path: path_2.clone(),
+        let report = FailureReport {
+            failures: vec![
+                FailureEntry {
+                    failed_operation: redis_id,
+                    failure_reason: storage
+                        .get(redis_id)
+                        .unwrap()
+                        .failure_reason
+                        .clone()
+                        .unwrap(),
+                    failed_path: path_1.clone(),
+                },
+                FailureEntry {
+                    failed_operation: database_id,
+                    failure_reason: storage
+                        .get(database_id)
+                        .unwrap()
+                        .failure_reason
+                        .clone()
+                        .unwrap(),
+                    failed_path: path_2.clone(),
+                },
+            ],
         };
-
-        assert_eq!(report_1.failed_operation, redis_id);
-        assert_eq!(report_2.failed_operation, database_id);
-        assert_eq!(
-            report_1.failure_reason,
-            "this is a &str panic message".into()
-        );
-        assert_eq!(
-            report_2.failure_reason,
-            "this is a &str panic message".into()
-        );
-        assert_eq!(report_1.failed_path, path_1);
-        assert_eq!(report_2.failed_path, path_2);
     }
 }

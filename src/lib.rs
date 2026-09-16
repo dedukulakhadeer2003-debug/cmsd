@@ -56,7 +56,7 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq,clone)]
 pub struct FailurePath {
     pub operations: Vec<Rc<str>>,
 }

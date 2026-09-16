@@ -56,7 +56,7 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
-#[derive(Debug,PartialEq,clone)]
+#[derive(Debug,PartialEq,Clone)]
 pub struct FailurePath {
     pub operations: Vec<Rc<str>>,
 }
@@ -665,7 +665,7 @@ mod tests {
     let report = FailureReport {
         failed_operation: database_id,
         failure_reason: storage.get(database_id).unwrap().failure_reason.clone().unwrap(),
-        failed_path: path,
+        failed_path: path.clone(),
     };
     
     assert_eq!(report.failed_operation,database_id);

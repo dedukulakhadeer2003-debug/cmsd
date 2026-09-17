@@ -149,7 +149,7 @@ pub struct FailureEntry {
     pub failed_path: FailurePath,
 }
 
-// thread_local! gives each thread its own private copy of the variable.
+// thread_ local! gives each thread its own private copy of the variable.
 thread_local! {
     // white board for each individual thrad for storing id
     // again each thread will get tiny memory to store one id.
@@ -217,6 +217,27 @@ where
         }
     };
     final_result
+}
+
+pub fn analyze() -> FailureReport {
+    let reading = EXECUTION_STORAGE.with(|storage| {
+        let store = storage.borrow();
+        let analyzer = FailureAnalyzer::new(&store);
+        let failures = analyzer.find_root_failures();
+        let mut entries = Vec::new();
+
+        for id in failures {
+            let entry = FailureEntry {
+                failed_operation: id,
+                failure_reason: store.get(id).unwrap().failure_reason.clone().unwrap(),
+                failed_path: store.build_failure_path(id),
+            };
+            entries.push(entry);
+        }
+        FailureReport { failures: entries }
+    });
+
+    reading
 }
 
 #[cfg(test)]
@@ -851,11 +872,30 @@ mod tests {
 
         assert_eq!(report.failures[0].failed_operation, redis_id);
         assert_eq!(report.failures[1].failed_operation, database_id);
-        assert_eq!(report.failures[0].failure_reason, "this is a &str panic message".into());
-        assert_eq!(report.failures[1].failure_reason, "this is a &str panic message".into());
-        let names_1: Vec<&str> = report.failures[0].failed_path.operations.iter().map(|s| &**s).collect();
+        assert_eq!(
+            report.failures[0].failure_reason,
+            "this is a &str panic message".into()
+        );
+        assert_eq!(
+            report.failures[1].failure_reason,
+            "this is a &str panic message".into()
+        );
+        let names_1: Vec<&str> = report.failures[0]
+            .failed_path
+            .operations
+            .iter()
+            .map(|s| &**s)
+            .collect();
         assert_eq!(names_1, ["request_query", "cache_query", "redis_query"]);
-        let names_2: Vec<&str> = report.failures[1].failed_path.operations.iter().map(|s| &**s).collect();
-        assert_eq!(names_2, ["request_query", "service_query", "database_query"]);
+        let names_2: Vec<&str> = report.failures[1]
+            .failed_path
+            .operations
+            .iter()
+            .map(|s| &**s)
+            .collect();
+        assert_eq!(
+            names_2,
+            ["request_query", "service_query", "database_query"]
+        );
     }
 }

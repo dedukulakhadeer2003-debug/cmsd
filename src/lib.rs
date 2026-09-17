@@ -56,12 +56,14 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
+// EXECUTION_STORAGE
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct FailurePath {
     pub operations: Vec<Rc<str>>,
 }
 
-pub struct ExecutionStorage {
+struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
 }
 impl ExecutionStorage {
@@ -111,8 +113,8 @@ impl ExecutionStorage {
             .collect()
     }
 }
-// trace
-pub struct FailureAnalyzer<'a> {
+// FailureAnalyzer
+struct FailureAnalyzer<'a> {
     // so here we need to do something that gives connection to  above execstorage.
     storage: &'a ExecutionStorage,
 }
@@ -168,6 +170,8 @@ thread_local! {
     };
 
 }
+
+// ExecutionStorage
 static NEXT_OPERATION_ID: AtomicU64 = AtomicU64::new(1);
 
 pub fn trace<F, T>(name: &str, operation_fn: F) -> T

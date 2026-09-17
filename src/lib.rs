@@ -44,7 +44,7 @@ impl Operation {
     }
 }
 
-pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
+fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     if let Some(s) = payload.downcast_ref::<&str>() {
         return s.to_string();
     } else if let Some(s) = payload.downcast_ref::<String>() {
@@ -56,7 +56,7 @@ pub fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
-// EXECUTION_STORAGE
+// extract_message
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FailurePath {

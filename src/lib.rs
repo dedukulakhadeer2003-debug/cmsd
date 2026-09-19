@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
@@ -17,16 +18,16 @@ pub struct OperationId(u64);
 
 pub struct Operation {
     pub id: OperationId,
-    pub name: Rc<str>,
+    pub name: Arc<str>,
     pub parent_id: Option<OperationId>,
     pub start_time: Instant,
     pub end_time: Option<Instant>,
     pub status: OperationStatus,
-    pub failure_reason: Option<Rc<str>>,
+    pub failure_reason: Option<Arc<str>>,
 }
 
 impl Operation {
-    pub fn new(id: OperationId, name: Rc<str>, parent_id: Option<OperationId>) -> Self {
+    pub fn new(id: OperationId, name: Arc<str>, parent_id: Option<OperationId>) -> Self {
         Self {
             id,
             name,
@@ -60,9 +61,10 @@ fn extract_message(payload: &(dyn std::any::Any + Send)) -> String {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FailurePath {
-    pub operations: Vec<Rc<str>>,
+    pub operations: Vec<Arc<str>>,
 }
 
+//Rc
 struct ExecutionStorage {
     operations: HashMap<OperationId, Operation>,
 }
@@ -147,7 +149,7 @@ pub struct FailureReport {
 
 pub struct FailureEntry {
     pub failed_operation: OperationId,
-    pub failure_reason: Rc<str>,
+    pub failure_reason: Arc<str>,
     pub failed_path: FailurePath,
 }
 
@@ -180,12 +182,12 @@ where
 {
     let id = OperationId(NEXT_OPERATION_ID.fetch_add(1, Ordering::Relaxed));
     let parent_id = CURRENT_OPERATION.with(|current| current.get());
-    let operation = Operation::new(id, Rc::from(name), parent_id);
+    let operation = Operation::new(id, Arc::from(name), parent_id);
 
     EXECUTION_STORAGE.with(|storage| {
         storage.borrow_mut().insert(operation); // now it is like 2 buckets operation is poured into bigger bucked operations ( which has hashmap rules ). now any modifications of this opearation should be dont with accessing operations to operation with id. Technically operation dosnt exist here.  
     });
-
+    //Rc
     let previous_operation = CURRENT_OPERATION.with(|current| {
         let previous = current.get();
         current.set(Some(id));
@@ -283,7 +285,7 @@ mod tests {
 
         let operation = Operation {
             id,
-            name: Rc::from("database_query"),
+            name: Arc::from("database_query"),
             parent_id: None,
             start_time: start,
             end_time: None,
@@ -293,6 +295,8 @@ mod tests {
         assert_eq!(operation.id.0, 42);
         assert_eq!(operation.name, "database_query".into());
     }
+
+    // Rc
     #[test]
     //5
     fn operation_records_end_time() {
@@ -300,7 +304,7 @@ mod tests {
 
         let mut operation = Operation {
             id: OperationId(1),
-            name: Rc::from("test"),
+            name: Arc::from("test"),
             parent_id: None,
             start_time: start,
             end_time: None,
@@ -339,6 +343,7 @@ mod tests {
             });
         });
     }
+    //Rc
     #[test]
     //8
     fn operation_stores_parent_id() {
@@ -347,7 +352,7 @@ mod tests {
 
         let operation = Operation {
             id: operation_id,
-            name: Rc::from("child"),
+            name: Arc::from("child"),
             parent_id: Some(parent_id),
             start_time: Instant::now(),
             end_time: None,
@@ -356,14 +361,14 @@ mod tests {
         };
         assert_eq!(operation.parent_id, Some(parent_id));
     }
-
+    //Rc
     #[test]
     //9
     fn execution_store_can_store_operation() {
         let mut store = ExecutionStorage::new();
         let operation = Operation {
             id: OperationId(100),
-            name: Rc::from("database_query"),
+            name: Arc::from("database_query"),
             parent_id: None,
             start_time: Instant::now(),
             end_time: None,
@@ -404,7 +409,7 @@ mod tests {
     //11
     fn operation_starts_as_running() {
         let id = OperationId(1);
-        let op = Operation::new(id, Rc::from("test"), None);
+        let op = Operation::new(id, Arc::from("test"), None);
         assert_eq!(op.status, OperationStatus::Running);
     }
 
@@ -418,6 +423,7 @@ mod tests {
         });
         assert!(result.is_err());
     }
+    //Rc
     #[test]
     //13
     fn panicking_operation_records_str_message() {
@@ -588,7 +594,7 @@ mod tests {
             assert!(failed.contains(&cache_id.unwrap()));
         });
     }
-
+    //Rc
     #[test]
     //19
 
@@ -599,7 +605,7 @@ mod tests {
         let child_id = OperationId(2);
         let parent_operation = Operation {
             id: parent_id,
-            name: Rc::from("database_query"),
+            name: Arc::from("database_query"),
             parent_id: None,
             start_time: Instant::now(),
             end_time: None,
@@ -609,7 +615,7 @@ mod tests {
 
         let child_operation = Operation {
             id: child_id,
-            name: Rc::from("database_query"),
+            name: Arc::from("database_query"),
             parent_id: Some(parent_id),
             start_time: Instant::now(),
             end_time: None,
@@ -633,7 +639,7 @@ mod tests {
         let database_id = OperationId(3);
         let request_operation = Operation {
             id: request_id,
-            name: Rc::from("request_query"),
+            name: Arc::from("request_query"),
             parent_id: None,
             start_time: Instant::now(),
             end_time: None,
@@ -643,7 +649,7 @@ mod tests {
 
         let service_operation = Operation {
             id: service_id,
-            name: Rc::from("service_query"),
+            name: Arc::from("service_query"),
             parent_id: Some(request_id),
             start_time: Instant::now(),
             end_time: None,
@@ -653,13 +659,14 @@ mod tests {
 
         let database_operation = Operation {
             id: database_id,
-            name: Rc::from("database_query"),
+            name: Arc::from("database_query"),
             parent_id: Some(service_id),
             start_time: Instant::now(),
             end_time: None,
             status: OperationStatus::Failed,
             failure_reason: None,
         };
+        //Rc
 
         let mut storage = ExecutionStorage::new();
         storage.insert(request_operation);
@@ -679,13 +686,15 @@ mod tests {
         let database_id = OperationId(3);
         let database_operation = Operation {
             id: database_id,
-            name: Rc::from("database_query"),
+            name: Arc::from("database_query"),
             parent_id: None,
             start_time: Instant::now(),
             end_time: None,
             status: OperationStatus::Failed,
             failure_reason: Some("this is a &str panic message".to_string().into()),
         };
+
+        //Rc
 
         let mut storage = ExecutionStorage::new();
         storage.insert(database_operation);
@@ -721,7 +730,7 @@ mod tests {
         let database_id = OperationId(3);
         let request_operation = Operation {
             id: request_id,
-            name: Rc::from("request_query"),
+            name: Arc::from("request_query"),
             parent_id: None,
             start_time: Instant::now(),
             end_time: None,
@@ -731,7 +740,7 @@ mod tests {
 
         let service_operation = Operation {
             id: service_id,
-            name: Rc::from("service_query"),
+            name: Arc::from("service_query"),
             parent_id: Some(request_id),
             start_time: Instant::now(),
             end_time: None,
@@ -741,14 +750,14 @@ mod tests {
 
         let database_operation = Operation {
             id: database_id,
-            name: Rc::from("database_query"),
+            name: Arc::from("database_query"),
             parent_id: Some(service_id),
             start_time: Instant::now(),
             end_time: None,
             status: OperationStatus::Failed,
             failure_reason: Some("this is a &str panic message".to_string().into()),
         };
-
+        //Rc
         let mut storage = ExecutionStorage::new();
         storage.insert(request_operation);
         storage.insert(service_operation);
@@ -793,7 +802,7 @@ mod tests {
 
         let request_operation = Operation {
             id: request_id,
-            name: Rc::from("request_query"),
+            name: Arc::from("request_query"),
             parent_id: None,
             start_time: Instant::now(),
             end_time: None,
@@ -803,7 +812,7 @@ mod tests {
 
         let cache_operation = Operation {
             id: cache_id,
-            name: Rc::from("cache_query"),
+            name: Arc::from("cache_query"),
             parent_id: Some(request_id),
             start_time: Instant::now(),
             end_time: None,
@@ -813,7 +822,7 @@ mod tests {
 
         let redis_operation = Operation {
             id: redis_id,
-            name: Rc::from("redis_query"),
+            name: Arc::from("redis_query"),
             parent_id: Some(cache_id),
             start_time: Instant::now(),
             end_time: None,
@@ -823,7 +832,7 @@ mod tests {
 
         let service_operation = Operation {
             id: service_id,
-            name: Rc::from("service_query"),
+            name: Arc::from("service_query"),
             parent_id: Some(request_id),
             start_time: Instant::now(),
             end_time: None,
@@ -833,13 +842,15 @@ mod tests {
 
         let database_operation = Operation {
             id: database_id,
-            name: Rc::from("database_query"),
+            name: Arc::from("database_query"),
             parent_id: Some(service_id),
             start_time: Instant::now(),
             end_time: None,
             status: OperationStatus::Failed,
             failure_reason: Some("this is a &str panic message".to_string().into()),
         };
+
+        //Rc
 
         let mut storage = ExecutionStorage::new();
         storage.insert(request_operation);
